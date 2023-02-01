@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+# browser_driver is a utility for using Selenium to input honeypot credentials into phishing pages.
+
 #selenium-4.8.0 
 
 from selenium import webdriver
@@ -46,7 +48,6 @@ class BrowserDriver:
 
 		if len(elems) == 2:
 			self.basic_page_engagement_routine()
-
 
 
 	# Function to preform a generic engagement routine against the target page to attempt to fuzz form fields.
