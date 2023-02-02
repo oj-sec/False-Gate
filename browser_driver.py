@@ -3,10 +3,12 @@
 # browser_driver is a utility for using Selenium to input honeypot credentials into phishing pages.
 
 #selenium-4.8.0 
+#selenium-wire-5.1.0
 
-from selenium import webdriver
+import seleniumwire.undetected_chromedriver as uc
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.action_chains import ActionChains
 import time
 
 class BrowserDriver:
@@ -14,11 +16,10 @@ class BrowserDriver:
 	# Initialisation method.
 	def __init__(self, target, credentials):
 		# Driver options
-		profile = webdriver.FirefoxProfile()
-		profile.set_preference("general.useragent.override","Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/106.0.0.0 Safari/537.36")
+		chrome_options = uc.ChromeOptions()
 
 		# Class attributes		
-		self.driver = webdriver.Firefox(firefox_profile=profile)
+		self.driver = uc.Chrome(options=chrome_options, seleniumwire_options={})
 		self.driver.set_window_size(1366,768)
 		self.target = target
 		self.credentials = credentials
@@ -63,21 +64,30 @@ class BrowserDriver:
 			try:
 				# Select the body so we can try to tab + return a button
 				body = driver.find_element(By.TAG_NAME, "body")
+				body.click()
 				body.send_keys(Keys.TAB)
-				body.send_keys(Keys.RETURN)
-
+				time.sleep(2)
+				# Actionchains is used here because Chromedriver was not responding to Keys.ENETR
+				actions = ActionChains(driver)
+				actions.send_keys(Keys.ENTER)
+				actions.perform()
+				time.sleep(1)
 				elems[0].send_keys(username)
 			except:
 				return 1
 
 		try:
 			elems[1].send_keys(password)
+			time.sleep(1)
+			elems[1].send_keys(Keys.RETURN)
+			time.sleep(10)
 		except:
 			try:
 				elems[0].send_keys(Keys.RETURN)
 				time.sleep(10)
 				elems[1].send_keys(username)
 				elems[1].send_keys(Keys.RETURN)
+				time.sleep(3)
 			except:
 				return 1
 
@@ -88,6 +98,34 @@ class BrowserDriver:
 		driver.close()
 
 
-bd = BrowserDriver("https://gateway.ipfs.io/ipfs/QmXJ6KtWsFYkW2RDTWnw3b7mF8vecyfV4w7aQtLqjGbNN4", {'popoo@gmail.com':"weweee"})
+	# Function to inspect the web requests made during the fuzz. 
+	def inspect_requests(self):
+
+		posts_sent = []
+
+		driver = self.get_attribute("driver")
+
+		for request in driver.requests:
+			print(request)
+
+		for request in driver.requests:
+
+			if request.method == "POST":
+				# omit useless Mozilla tracking POSTS
+				if "mozilla.com" not in request.url:
+					temp = {}
+					temp['postTarget'] = request.url
+					temp['postData'] = request.body
+					posts_sent.append(temp)
+
+		return posts_sent
+
+
+bd = BrowserDriver("https://gateway.ipfs.io/ipfs/QmbLd37HqzS5Nid7yrwZVb3X28qYyVRtodF5U1gnBqTeC3", {'popoo@gmail.com':"weweee"})
 bd.select_fuzzer()
+requests_sent = bd.inspect_requests()
+print(requests_sent)
 bd.close()
+
+#https://gateway.ipfs.io/ipfs/QmbLd37HqzS5Nid7yrwZVb3X28qYyVRtodF5U1gnBqTeC3
+#https://gateway.ipfs.io/ipfs/QmXJ6KtWsFYkW2RDTWnw3b7mF8vecyfV4w7aQtLqjGbNN4
