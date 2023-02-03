@@ -10,6 +10,7 @@ from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
 import time
+import json
 
 class BrowserDriver:
 
@@ -47,11 +48,12 @@ class BrowserDriver:
 		# Count form elements
 		elems = driver.find_elements(By.TAG_NAME, "input")
 
-		if len(elems) == 2:
-			self.basic_page_engagement_routine()
+		# Insert additional fuzzers here with appropriate condition
+		self.basic_page_engagement_routine()
 
 
-	# Function to preform a generic engagement routine against the target page to attempt to fuzz form fields.
+	# Function to preform a generic engagement routine against the target page to attempt to fuzz form fields
+	# Works by trying to tab + enter through 0-1 buffer elements and then a login screen.
 	def basic_page_engagement_routine(self):
 		driver = self.get_attribute("driver")
 		(username, password), = self.get_attribute("credentials").items()
@@ -95,6 +97,7 @@ class BrowserDriver:
 	def close(self):
 
 		driver = self.get_attribute("driver")
+		del driver.requests
 		driver.close()
 
 
@@ -106,26 +109,40 @@ class BrowserDriver:
 		driver = self.get_attribute("driver")
 
 		for request in driver.requests:
-			print(request)
-
-		for request in driver.requests:
 
 			if request.method == "POST":
 				# omit useless Mozilla tracking POSTS
-				if "mozilla.com" not in request.url:
+				if "google-analytics.com" not in request.url and "update.googleapis.com" not in request.url:
 					temp = {}
 					temp['postTarget'] = request.url
-					temp['postData'] = request.body
+					temp['postData'] = str(request.body)
 					posts_sent.append(temp)
 
 		return posts_sent
 
+	# Class entrypoint and main execution handler
+	def start(self):
 
-bd = BrowserDriver("https://gateway.ipfs.io/ipfs/QmbLd37HqzS5Nid7yrwZVb3X28qYyVRtodF5U1gnBqTeC3", {'popoo@gmail.com':"weweee"})
-bd.select_fuzzer()
-requests_sent = bd.inspect_requests()
-print(requests_sent)
-bd.close()
+		credentials = self.get_attribute("credentials")
+		target = self.get_attribute("target")
 
-#https://gateway.ipfs.io/ipfs/QmbLd37HqzS5Nid7yrwZVb3X28qYyVRtodF5U1gnBqTeC3
-#https://gateway.ipfs.io/ipfs/QmXJ6KtWsFYkW2RDTWnw3b7mF8vecyfV4w7aQtLqjGbNN4
+		try:
+			self.select_fuzzer()
+			requests_sent = self.inspect_requests()
+
+			if requests_sent:
+				formatted_return = {}
+				formatted_return['targetUrl'] = target
+				formatted_return['credentialsUsed'] = credentials
+				formatted_return['postRequestsTriggered'] = requests_sent
+
+				self.close()
+				return formatted_return
+
+			else:
+				self.close()
+
+		except:
+			self.close()
+			return
+
