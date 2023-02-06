@@ -11,7 +11,6 @@ app = Flask(__name__, static_url_path='/static')
 @app.route("/false_gate/submit_url/", methods=['POST'])
 def submit_uri():
 
-
 	url = request.get_json()['url']
 
 	try:

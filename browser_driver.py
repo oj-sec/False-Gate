@@ -2,13 +2,16 @@
 
 # browser_driver is a utility for using Selenium to input honeypot credentials into phishing pages.
 
-#selenium-4.8.0 
-#selenium-wire-5.1.0
+## TODO
+# filter metrics/tracking domains with netloc ignore list
+# generator for fake details
+# investigate intercepting non-200 POSTs with seleniumwire
 
 import seleniumwire.undetected_chromedriver as uc
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
+import argparse
 import time
 import json
 
@@ -121,7 +124,7 @@ class BrowserDriver:
 		for request in driver.requests:
 
 			if request.method == "POST":
-				# omit useless Google tracking POSTS
+				# omit useless Google tracking POSTS // Needs to be expanded to a large ignore list
 				if "google-analytics.com" not in request.url and "update.googleapis.com" not in request.url:
 					temp = {}
 					temp['postTarget'] = request.url
@@ -132,8 +135,8 @@ class BrowserDriver:
 
 	# Class entrypoint and main execution handler
 	def start(self):
-
-		credentials = self.get_attribute("credentials")
+		credentials = {}
+		(credentials['username'], credentials['password']), = self.get_attribute("credentials").items()
 		target = self.get_attribute("target")
 
 		try:
