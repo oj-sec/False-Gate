@@ -23,9 +23,13 @@ def submit_uri():
 
 	results = bd.start()
 
-	print(results)
+	if results:
 
-	return results
+		return results
+
+	else:
+
+		return {}
 
 
 if __name__ == '__main__':

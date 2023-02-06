@@ -18,6 +18,15 @@ class BrowserDriver:
 	def __init__(self, target, credentials):
 		# Driver options
 		chrome_options = uc.ChromeOptions()
+		chrome_options.add_argument("--incognito")
+		chrome_options.add_argument("--no-sandbox")
+		chrome_options.add_argument("--disable-setuid-sandbox")
+		chrome_options.add_argument("--disable-extensions")
+		chrome_options.add_argument('--disable-application-cache')
+		chrome_options.add_argument('--disable-gpu')
+		chrome_options.add_argument("--disable-dev-shm-usage")
+		chrome_options.add_argument("--headless")
+
 
 		# Class attributes		
 		self.driver = uc.Chrome(options=chrome_options, seleniumwire_options={})
@@ -33,7 +42,7 @@ class BrowserDriver:
 		except:
 			return
 
-	# Function to select the fuzzing routine to use on the target.
+	# Function to select and execute the fuzzing routine.
 	def select_fuzzer(self):
 		driver = self.get_attribute("driver")
 		target = self.get_attribute("target")
@@ -50,6 +59,7 @@ class BrowserDriver:
 
 		# Insert additional fuzzers here with appropriate condition
 		self.basic_page_engagement_routine()
+		return "basic-page-engagement"
 
 
 	# Function to preform a generic engagement routine against the target page to attempt to fuzz form fields
@@ -111,7 +121,7 @@ class BrowserDriver:
 		for request in driver.requests:
 
 			if request.method == "POST":
-				# omit useless Mozilla tracking POSTS
+				# omit useless Google tracking POSTS
 				if "google-analytics.com" not in request.url and "update.googleapis.com" not in request.url:
 					temp = {}
 					temp['postTarget'] = request.url
@@ -127,13 +137,14 @@ class BrowserDriver:
 		target = self.get_attribute("target")
 
 		try:
-			self.select_fuzzer()
+			fuzzer = self.select_fuzzer()
 			requests_sent = self.inspect_requests()
 
 			if requests_sent:
 				formatted_return = {}
 				formatted_return['targetUrl'] = target
 				formatted_return['credentialsUsed'] = credentials
+				formatted_return['engagementRoutine'] = fuzzer
 				formatted_return['postRequestsTriggered'] = requests_sent
 
 				self.close()
