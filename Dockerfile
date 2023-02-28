@@ -3,11 +3,17 @@
 # base image
 FROM python:3.12.0a3-bullseye
 
+# set the display server
+RUN apt-get update -y
+RUN apt-get install -y xvfb
+ENV DISPLAY=:1
+RUN Xvfb $DISPLAY -screen $DISPLAY 1280x1024x16 &
+
 # add chromedriver binary
 ADD ./chromedriver /usr/local/bin/chromedriver
 RUN chmod +x /usr/local/bin/chromedriver
 
-# Install Google Chrome
+# install Google Chrome
 RUN curl -sS -o - https://dl-ssl.google.com/linux/linux_signing_key.pub | apt-key add - && \
     echo "deb http://dl.google.com/linux/chrome/deb/ stable main" >> /etc/apt/sources.list.d/google-chrome.list && \
     apt-get -yqq update && \

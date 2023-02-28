@@ -11,6 +11,7 @@ import seleniumwire.undetected_chromedriver as uc
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.common.action_chains import ActionChains
+from urllib.parse import urlparse
 import argparse
 import time
 import json
@@ -28,8 +29,7 @@ class BrowserDriver:
 		chrome_options.add_argument('--disable-application-cache')
 		chrome_options.add_argument('--disable-gpu')
 		chrome_options.add_argument("--disable-dev-shm-usage")
-		chrome_options.add_argument("--headless")
-
+		#chrome_options.add_argument("--headless")
 
 		# Class attributes		
 		self.driver = uc.Chrome(options=chrome_options, seleniumwire_options={})
@@ -122,16 +122,26 @@ class BrowserDriver:
 		driver = self.get_attribute("driver")
 
 		for request in driver.requests:
-
 			if request.method == "POST":
-				# omit useless Google tracking POSTS // Needs to be expanded to a large ignore list
-				if "google-analytics.com" not in request.url and "update.googleapis.com" not in request.url:
+				if not self.domain_ignore_list(request.url):
 					temp = {}
 					temp['postTarget'] = request.url
 					temp['postData'] = str(request.body)
 					posts_sent.append(temp)
 
 		return posts_sent
+
+	# Function to drop requests based on an ignore list
+	def domain_ignore_list(self, url):
+
+		domain = urlparse(url).netloc
+
+		with open('post_domain_ignore_list', 'r') as f:
+			domains = f.read().splitlines()
+			if domain in domains:
+				return True
+			else:
+				return False
 
 	# Class entrypoint and main execution handler
 	def start(self):
@@ -160,3 +170,10 @@ class BrowserDriver:
 			self.close()
 			return
 
+if __name__ == "__main__":
+
+	# Testing credentials
+	browser_driver = BrowserDriver("https://www.eservicebits.com/landingpages/fe996bbf-3dce-487c-acd3-4a69200fa8a0/iacxjd89fjfws0oixryzrvrs8z3sfspvh9wokt0qqn4", {"jasonpostman@gmail.com":"bobbytables18#"})
+	formatted_return = browser_driver.start()
+
+	quit()

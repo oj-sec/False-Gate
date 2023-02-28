@@ -6,7 +6,7 @@ from flask import Flask, jsonify, request, render_template
 import datetime
 import browser_driver
 
-app = Flask(__name__, static_url_path='/static')
+app = Flask(__name__)
 
 @app.route("/false_gate/submit_url/", methods=['POST'])
 def submit_uri():
@@ -19,15 +19,12 @@ def submit_uri():
 		credentials = {"jasonpostman@gmail.com":"bobbytables18#"}
 
 	bd = browser_driver.BrowserDriver(url, credentials)
-
 	results = bd.start()
 
 	if results:
-
 		return results
 
 	else:
-
 		return {}
 
 
