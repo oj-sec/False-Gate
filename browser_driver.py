@@ -122,6 +122,7 @@ class BrowserDriver:
 		driver = self.get_attribute("driver")
 
 		for request in driver.requests:
+			print(f"{request.url}  {str(request.status_code)}")
 			if request.method == "POST":
 				if not self.domain_ignore_list(request.url):
 					temp = {}
