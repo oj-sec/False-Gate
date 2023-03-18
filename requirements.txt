@@ -1,5 +1,2 @@
 playwright==1.31.1
-selenium==4.8.0 
-undetected-chromedriver==3.2.1
-selenium-wire==5.1.0
 Flask==2.2.2

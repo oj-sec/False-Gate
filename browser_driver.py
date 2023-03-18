@@ -1,180 +1,102 @@
-#!/usr/bin/env python3
-
-# browser_driver is a utility for using Selenium to input honeypot credentials into phishing pages.
-
-## TODO
-# filter metrics/tracking domains with netloc ignore list
-# generator for fake details
-# investigate intercepting non-200 POSTs with seleniumwire
-
-import seleniumwire.undetected_chromedriver as uc
-from selenium.webdriver.common.keys import Keys
-from selenium.webdriver.common.by import By
-from selenium.webdriver.common.action_chains import ActionChains
+from playwright.sync_api import Playwright, sync_playwright, expect
 from urllib.parse import urlparse
-import argparse
 import time
-import json
-
-class BrowserDriver:
-
-	# Initialisation method.
-	def __init__(self, target, credentials):
-		# Driver options
-		chrome_options = uc.ChromeOptions()
-		chrome_options.add_argument("--incognito")
-		chrome_options.add_argument("--no-sandbox")
-		chrome_options.add_argument("--disable-setuid-sandbox")
-		chrome_options.add_argument("--disable-extensions")
-		chrome_options.add_argument('--disable-application-cache')
-		chrome_options.add_argument('--disable-gpu')
-		chrome_options.add_argument("--disable-dev-shm-usage")
-		#chrome_options.add_argument("--headless")
-
-		# Class attributes		
-		self.driver = uc.Chrome(options=chrome_options, seleniumwire_options={})
-		self.driver.set_window_size(1366,768)
-		self.target = target
-		self.credentials = credentials
-
-	# Getter method for value of class attributes
-	def get_attribute(self, attribute):
-		attributes = self.__dict__
-		try:
-			return attributes[attribute]
-		except:
-			return
-
-	# Function to select and execute the fuzzing routine.
-	def select_fuzzer(self):
-		driver = self.get_attribute("driver")
-		target = self.get_attribute("target")
-
-		try:	
-			driver.get(target)
-			# Padding time to allow dynamic elements to load
-			time.sleep(3)
-		except:
-			return 1
-
-		# Count form elements
-		elems = driver.find_elements(By.TAG_NAME, "input")
-
-		# Insert additional fuzzers here with appropriate condition
-		self.basic_page_engagement_routine()
-		return "basic-page-engagement"
 
 
-	# Function to preform a generic engagement routine against the target page to attempt to fuzz form fields
-	# Works by trying to tab + enter through 0-1 buffer elements and then a login screen.
-	def basic_page_engagement_routine(self):
-		driver = self.get_attribute("driver")
-		(username, password), = self.get_attribute("credentials").items()
+# Runner routine
+def run(playwright: Playwright, target, username, password, mfa=None) -> None:
+    browser = playwright.chromium.launch(headless=True)
+    context = browser.new_context()
+    page = context.new_page()
 
-		elems = driver.find_elements(By.TAG_NAME, "input")
+    page.set_default_timeout(10000)
 
-		try:
-			elems[0].send_keys(username)
-		except:
-			try:
-				# Select the body so we can try to tab + return a button
-				body = driver.find_element(By.TAG_NAME, "body")
-				body.click()
-				body.send_keys(Keys.TAB)
-				time.sleep(2)
-				# Actionchains is used here because Chromedriver was not responding to Keys.ENETR
-				actions = ActionChains(driver)
-				actions.send_keys(Keys.ENTER)
-				actions.perform()
-				time.sleep(1)
-				elems[0].send_keys(username)
-			except:
-				return 1
+    stored_post_requests = []
+    page.on("request", lambda request: stored_post_requests.append({"requestUrl":request.url, "postData":request.post_data}) if request.method == "POST" else None)
+    
+    page.goto(target)
+    
+    all_inputs = page.locator("input")
+    try:
+        try:
+            all_inputs.nth(0).fill(username)
+        except:
+            try:
+                body = page.locator("body")
+                body.click()
+                time.sleep(1)
+                page.keyboard.down("Tab")
+                time.sleep(1)
+                page.keyboard.down("Enter")
+                all_inputs.nth(0).fill(username)
+                time.sleep(1)
+            except:
+                page.close()
+                context.close()
+                browser.close()
+                return 1
 
-		try:
-			elems[1].send_keys(password)
-			time.sleep(1)
-			elems[1].send_keys(Keys.RETURN)
-			time.sleep(10)
-		except:
-			try:
-				elems[0].send_keys(Keys.RETURN)
-				time.sleep(10)
-				elems[1].send_keys(username)
-				elems[1].send_keys(Keys.RETURN)
-				time.sleep(3)
-			except:
-				return 1
+        try: 
+            time.sleep(1)
+            all_inputs.nth(1).fill(password)
+            time.sleep(1)
+            page.keyboard.down("Enter")
+            time.sleep(8)
+        except:
+            page.keyboard.down("Enter")
+            all_inputs.nth(1).fill(password)
+            page.keyboard.down("Enter")
+            time.sleep(8)
+    except:
+        page.close()
+        context.close()
+        browser.close()
+        return 1
+    
+    # TODO MFA handler 
 
-	# Function to handle webdriver termination.
-	def close(self):
+    page.close()
+    context.close()
+    browser.close()
 
-		driver = self.get_attribute("driver")
-		del driver.requests
-		driver.close()
+    return stored_post_requests
 
+# Function to clean up post requests based on an ignore list
+def post_domain_cleaner(stored_post_requests):
+    
+    cleaned_post_requests = []
+    with open('post_domain_ignore_list', 'r') as f:
+        ignore_domains = f.read().splitlines()
+    for item in stored_post_requests:
+        domain = urlparse(item['requestUrl'])
+        if domain not in ignore_domains:
+            cleaned_post_requests.append(item)
 
-	# Function to inspect the web requests made during the fuzz. 
-	def inspect_requests(self):
+    return cleaned_post_requests
 
-		posts_sent = []
+# Module entry point & main execution handler
+def start(target, credentials):
 
-		driver = self.get_attribute("driver")
+    with sync_playwright() as playwright:
+        stored_post_requests = run(playwright, target, credentials['username'], credentials['password'])
 
-		for request in driver.requests:
-			print(f"{request.url}  {str(request.status_code)}")
-			if request.method == "POST":
-				if not self.domain_ignore_list(request.url):
-					temp = {}
-					temp['postTarget'] = request.url
-					temp['postData'] = str(request.body)
-					posts_sent.append(temp)
+        if stored_post_requests == 1:
+            return
 
-		return posts_sent
+    cleaned_post_requests = post_domain_cleaner(stored_post_requests)
+            
+    formatted_return = {}
+    formatted_return['targetUrl'] = target
+    formatted_return['credentialsUsed'] = credentials
+    formatted_return['engagementRoutine'] = 'basic'
+    formatted_return['postRequestsTriggered'] = cleaned_post_requests
 
-	# Function to drop requests based on an ignore list
-	def domain_ignore_list(self, url):
+    print(formatted_return)
 
-		domain = urlparse(url).netloc
+    return formatted_return    
 
-		with open('post_domain_ignore_list', 'r') as f:
-			domains = f.read().splitlines()
-			if domain in domains:
-				return True
-			else:
-				return False
-
-	# Class entrypoint and main execution handler
-	def start(self):
-		credentials = {}
-		(credentials['username'], credentials['password']), = self.get_attribute("credentials").items()
-		target = self.get_attribute("target")
-
-		try:
-			fuzzer = self.select_fuzzer()
-			requests_sent = self.inspect_requests()
-
-			if requests_sent:
-				formatted_return = {}
-				formatted_return['targetUrl'] = target
-				formatted_return['credentialsUsed'] = credentials
-				formatted_return['engagementRoutine'] = fuzzer
-				formatted_return['postRequestsTriggered'] = requests_sent
-
-				self.close()
-				return formatted_return
-
-			else:
-				self.close()
-
-		except:
-			self.close()
-			return
 
 if __name__ == "__main__":
 
-	# Testing credentials
-	browser_driver = BrowserDriver("https://www.eservicebits.com/landingpages/fe996bbf-3dce-487c-acd3-4a69200fa8a0/iacxjd89fjfws0oixryzrvrs8z3sfspvh9wokt0qqn4", {"jasonpostman@gmail.com":"bobbytables18#"})
-	formatted_return = browser_driver.start()
-
-	quit()
+    # Testing credentials
+    start("https://gateway.ipfs.io/ipfs/QmbLd37HqzS5Nid7yrwZVb3X28qYyVRtodF5U1gnBqTeC3", {"username":"bobbytables@gmail.com","password":"bongos99"})
